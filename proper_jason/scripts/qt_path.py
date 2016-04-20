@@ -36,7 +36,7 @@ class QtPath(QtGui.QWidget):
         loadUi(os.path.join(path, 'resources', 'path.ui'), self)
 
         #self.pub_path = rospy.Publisher('path', String, queue_size=1)
-        #rospy.wait_for_service('robot_send_command')
+        rospy.wait_for_service('robot_send_command')
         self.send_command = rospy.ServiceProxy('robot_send_command',
                                                SrvRobotCommand)
         #self.pub = rospy.Publisher('robot_command_json',
