@@ -1,10 +1,9 @@
 #!/usr/bin/env python
 import os
-import tf
 import sys
+import json
 import rospy
 import rospkg
-import rosparam
 import numpy as np
 from std_msgs.msg import String, Header
 from proper_abb.srv import SrvRobotCommand
@@ -13,20 +12,17 @@ from time import sleep
 # from geometry_msgs.msg import PoseStamped, Pose, Point, Quaternion
 # from nav_msgs.msg import Path
 from visualization_msgs.msg import Marker, MarkerArray
+#from proper_abb.msg import MsgRobotCommand
+from proper_abb.srv import SrvRobotCommand
+# from geometry_msgs.msg import PoseStamped, Pose, Point, Quaternion
 from markers import LinesMarker
 from markers import ArrowMarker
-
 
 from python_qt_binding import loadUi
 from python_qt_binding import QtGui
 from python_qt_binding import QtCore
 
 from jason.jason import Jason
-from jason.jason import Jason
-from transformations import transformations as trans
-import json
-
-
 path = rospkg.RosPack().get_path('proper_jason')
 
 
@@ -62,13 +58,23 @@ class QtPath(QtGui.QWidget):
         self.jason = Jason()
         self.stop = True
 
-        self.tmrStatus = QtCore.QTimer(self)
-        self.tmrStatus.timeout.connect(self.timeStatusEvent)
-
         self.arr = []
         self.marker_array = MarkerArray()
         self.pub_marker_array = rospy.Publisher('visualization_marker_array',
                                                 MarkerArray, queue_size=1)
+        self.btnCancel.clicked.connect(self.btnCancelClicked)
+
+        self.jason = Jason()
+        self.ok_command = "OK"
+
+        self.offset_position = 100
+        self.quat = [0, np.sin(np.deg2rad(45)), 0, np.cos(np.deg2rad(45))]
+        self.quat_inv = [0, -np.sin(np.deg2rad(45)), 0, np.cos(np.deg2rad(45))]
+
+        self.pub_marker_array = rospy.Publisher(
+            'visualization_marker_array', MarkerArray, queue_size=10)
+
+        self.marker_array = MarkerArray()
         self.lines = LinesMarker()
         self.lines.set_size(0.005)
         self.lines.set_color((1, 0, 0, 1))
@@ -78,12 +84,15 @@ class QtPath(QtGui.QWidget):
         self.arrow = ArrowMarker(0.1)
         self.arrow.set_color((0, 0, 1, 1))
         self.arrow.set_frame('/workobject')
-        self.arrow.set_position((0.2, 0.2, 0.2))
-        self.arrow.set_orientation((0, 0, 0, 1))
+        # self.arrow.set_position((0.2, 0.2, 0.2))
+        # self.arrow.set_orientation((0, 0, 0, 1))
         self.marker_array.markers.append(self.arrow.marker)
 
         for id, m in enumerate(self.marker_array.markers):
             m.id = id
+
+        self.tmrStatus = QtCore.QTimer(self)
+        self.tmrStatus.timeout.connect(self.timeStatusEvent)
 
     def insertPose(self, pose):
         (x, y, z), (qx, qy, qz, qw) = pose
@@ -150,6 +159,16 @@ class QtPath(QtGui.QWidget):
         self.listWidgetPoses.takeItem(row)
         #self.listWidgetPoses.clear()
 
+    def btnLoadPoseClicked(self):
+        rob_pose = self.send_command('{"get_pose":1}')
+        default_command = '{"move":' + rob_pose.response + '}'
+        str_command = QtGui.QInputDialog.getText(
+            self, "Load Jason Command", "Comamnd:", text=default_command)
+        row = self.listWidgetPoses.currentRow()
+        if len(str_command[0]) > 3:
+            self.insertCommand(str_command[0], insert=True, position=row)
+        print str_command
+
     def btnStepClicked(self):
         n_row = self.listWidgetPoses.count()
         if n_row > 0:
@@ -164,16 +183,6 @@ class QtPath(QtGui.QWidget):
             if row == n_row:
                 row = 0
             self.listWidgetPoses.setCurrentRow(row)
-
-    def btnLoadPoseClicked(self):
-        rob_pose = self.send_command('{"get_pose":1}')
-        default_command = '{"move":' + rob_pose.response + '}'
-        str_command = QtGui.QInputDialog.getText(
-            self, "Load Jason Command", "Comamnd:", text=default_command)
-        row = self.listWidgetPoses.currentRow()
-        if len(str_command[0]) > 3:
-            self.insertCommand(str_command[0], insert=True, position=row)
-        print str_command
 
     def qlistDoubleClicked(self):
         row = self.listWidgetPoses.currentRow()
@@ -262,7 +271,6 @@ class QtPath(QtGui.QWidget):
 
     def getMoveCommands(self):
         n_row = self.listWidgetPoses.count()
-        # row = self.listWidgetPoses.currentRow()
         row = 0
         for row in range(0, n_row):
             item_text = self.listWidgetPoses.item(row)
