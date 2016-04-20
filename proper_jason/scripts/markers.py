@@ -5,11 +5,10 @@ from jason.jason import Jason
 from geometry_msgs.msg import Point
 from visualization_msgs.msg import Marker
 from visualization_msgs.msg import MarkerArray
-# from transformations import transformations
+
 from transformations import transformations as ts
 import math
 import numpy as np
-
 
 
 class ShapeMarker():
@@ -78,8 +77,6 @@ class ArrowMarker(ShapeMarker):
         self.set_orientation(orientation)
         self.set_position(position)
 
-
-
 class CubeMarker(ShapeMarker):
     def __init__(self):
         ShapeMarker.__init__(self)
@@ -106,7 +103,7 @@ class LinesMarker(ShapeMarker):
         self.set_size()
 
     def set_size(self, size=0.001):
-        self.set_scale(scale=(size, size, size))
+        self.set_scale(scale=(size, size, 1.0))
 
     def set_points(self, points):
         self.marker.points = [Point(x, y, z) for x, y, z in points]
