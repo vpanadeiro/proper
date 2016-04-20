@@ -180,7 +180,6 @@ class QtPath(QtGui.QWidget):
 
     def getMoveCommands(self):
         n_row = self.listWidgetPoses.count()
-        # row = self.listWidgetPoses.currentRow()
         points = []
         for row in range(n_row):
             item_text = self.listWidgetPoses.item(row)
@@ -189,7 +188,6 @@ class QtPath(QtGui.QWidget):
             if 'move' in comando:
                 point = comando["move"][0]
                 points.append(point)
-        print 'feita a adquisicion de trayectoria:', points
         points = np.array(points) * 0.001
         self.lines.set_points(points)
         self.pub_marker_array.publish(self.marker_array)
