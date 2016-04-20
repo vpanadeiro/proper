@@ -5,16 +5,11 @@ import json
 import rospy
 import rospkg
 import numpy as np
-from std_msgs.msg import String, Header
-from proper_abb.srv import SrvRobotCommand
-from threading import Thread
-from time import sleep
-# from geometry_msgs.msg import PoseStamped, Pose, Point, Quaternion
-# from nav_msgs.msg import Path
-from visualization_msgs.msg import Marker, MarkerArray
 #from proper_abb.msg import MsgRobotCommand
 from proper_abb.srv import SrvRobotCommand
 # from geometry_msgs.msg import PoseStamped, Pose, Point, Quaternion
+from visualization_msgs.msg import MarkerArray
+
 from markers import LinesMarker
 from markers import ArrowMarker
 
@@ -31,23 +26,15 @@ class QtPath(QtGui.QWidget):
         QtGui.QWidget.__init__(self, parent)
         loadUi(os.path.join(path, 'resources', 'path.ui'), self)
 
-        #self.pub_path = rospy.Publisher('path', String, queue_size=1)
         rospy.wait_for_service('robot_send_command')
-        self.send_command = rospy.ServiceProxy('robot_send_command',
-                                               SrvRobotCommand)
-        #self.pub = rospy.Publisher('robot_command_json',
-        #                           MsgRobotCommand, queue_size=10)
+        self.send_command = rospy.ServiceProxy(
+            'robot_send_command', SrvRobotCommand)
+        #self.pub = rospy.Publisher(
+        #    'robot_command_json', MsgRobotCommand, queue_size=10)
 
         self.btnLoadPath.clicked.connect(self.btnLoadPathClicked)
-        icon = QtGui.QIcon.fromTheme('document-open')
-        self.btnLoadPath.setIcon(icon)
         self.btnSavePath.clicked.connect(self.btnSavePathClicked)
-        icon = QtGui.QIcon.fromTheme('document-save')
-        self.btnSavePath.setIcon(icon)
         self.btnRunPath.clicked.connect(self.btnRunPathClicked)
-        icon = QtGui.QIcon.fromTheme('media-playback-start')
-        self.btnRunPath.setIcon(icon)
-
         self.btnDelete.clicked.connect(self.btnDeleteClicked)
         self.btnLoadPose.clicked.connect(self.btnLoadPoseClicked)
         self.btnStep.clicked.connect(self.btnStepClicked)
@@ -56,20 +43,7 @@ class QtPath(QtGui.QWidget):
         self.btnCancel.clicked.connect(self.btnCancelClicked)
 
         self.jason = Jason()
-        self.stop = True
-
-        self.arr = []
-        self.marker_array = MarkerArray()
-        self.pub_marker_array = rospy.Publisher('visualization_marker_array',
-                                                MarkerArray, queue_size=1)
-        self.btnCancel.clicked.connect(self.btnCancelClicked)
-
-        self.jason = Jason()
         self.ok_command = "OK"
-
-        self.offset_position = 100
-        self.quat = [0, np.sin(np.deg2rad(45)), 0, np.cos(np.deg2rad(45))]
-        self.quat_inv = [0, -np.sin(np.deg2rad(45)), 0, np.cos(np.deg2rad(45))]
 
         self.pub_marker_array = rospy.Publisher(
             'visualization_marker_array', MarkerArray, queue_size=10)
@@ -91,8 +65,8 @@ class QtPath(QtGui.QWidget):
         for id, m in enumerate(self.marker_array.markers):
             m.id = id
 
-        self.tmrStatus = QtCore.QTimer(self)
-        self.tmrStatus.timeout.connect(self.timeStatusEvent)
+        self.tmrRunPath = QtCore.QTimer(self)
+        self.tmrRunPath.timeout.connect(self.timeRunPathEvent)
 
     def insertPose(self, pose):
         (x, y, z), (qx, qy, qz, qw) = pose
@@ -138,21 +112,13 @@ class QtPath(QtGui.QWidget):
         print 'Saved routine:', filename
 
     def btnRunPathClicked(self):
-        '''
-        Start-Stop sending commands to robot from a listWidget.
-        '''
-        #if self.tmrStatus.isActive():
-        #    self.tmrStatus.stop()
-        #else:
-        #    self.tmrStatus.start(10)  # time in ms
-        if self.stop:
-            self.btnRunPath.setText('Stop')
-            self.stop = False
-            self.sendPath()
-        else:
+        """Start-Stop sending commands to robot from the list of commands."""
+        if self.tmrRunPath.isActive():
+            self.tmrRunPath.stop()
             self.btnRunPath.setText('Run')
-            self.stop = True
-            #self.t.join()
+        else:
+            self.btnRunPath.setText('Stop')
+            self.tmrRunPath.start(100)  # time in ms
 
     def btnDeleteClicked(self):
         row = self.listWidgetPoses.currentRow()
@@ -177,8 +143,7 @@ class QtPath(QtGui.QWidget):
                 row = 0
             item_text = self.listWidgetPoses.item(row)
             #self.pub.publish(item_text.text())
-            rob_response = self.send_command(item_text.text())
-            print item_text.text()
+            self.sendCommand(item_text.text())
             row += 1
             if row == n_row:
                 row = 0
@@ -194,8 +159,7 @@ class QtPath(QtGui.QWidget):
             self.insertCommand(str_command[0], insert=True, position=row)
 
     def btnCancelClicked(self):
-        command = '{"cancel":1}'
-        rob_response = self.send_command(command)
+        self.sendCommand('{"cancel":1}')
 
     def PosesClicked(self):
         row = self.listWidgetPoses.currentRow()
@@ -209,13 +173,35 @@ class QtPath(QtGui.QWidget):
 
             self.arrow.set_new_position(new_arrow_position)
             self.arrow.set_new_orientation(new_arrow)
+            self.arrow.set_color((1, 0, 0, 1))
+        else:
+            self.arrow.set_color((0, 0, 0, 0))
             self.pub_marker_array.publish(self.marker_array)
 
-    def timeStatusEvent(self):
-        '''
-        Publish one pose from listWidget each time event.
-        Not implemented in ros service communication.
-        '''
+    def getMoveCommands(self):
+        n_row = self.listWidgetPoses.count()
+        # row = self.listWidgetPoses.currentRow()
+        points = []
+        for row in range(n_row):
+            item_text = self.listWidgetPoses.item(row)
+            str_item = item_text.text()
+            comando = json.loads(str_item)
+            if 'move' in comando:
+                point = comando["move"][0]
+                points.append(point)
+        points = np.array(points) * 0.001
+        print points
+        self.lines.set_points(points)
+        self.pub_marker_array.publish(self.marker_array)
+
+    def sendCommand(self, command):
+        rob_response = self.send_command(command)
+        print 'Sended command:', command
+        print 'Received response:', rob_response
+        self.ok_command = rob_response.response
+
+    def timeRunPathEvent(self):
+        """Sends a command each time event from the list of commands."""
         n_row = self.listWidgetPoses.count()
         if n_row > 0:
             row = self.listWidgetPoses.currentRow()
@@ -223,65 +209,14 @@ class QtPath(QtGui.QWidget):
                 row = 0
             item_text = self.listWidgetPoses.item(row)
             #self.pub.publish(item_text.text())
-            self.tmrStatus.stop()
-            rob_response = self.send_command(item_text.text())
-            print item_text.text()
-            self.tmrStatus.start(10)
-            row += 1
-            if row == n_row:
-                row = 0
-                self.tmrStatus.stop()
-            self.listWidgetPoses.setCurrentRow(row)
-
-    def sendPath(self):
-        '''
-        Sends poses from the listWidget until button stop is pressed or all
-        poses have been send.
-        '''
-        n_row = self.listWidgetPoses.count()
-        self.ok_command = "OK"
-        if n_row > 0:
-            while not(self.stop):
-                QtGui.QApplication.processEvents()
-                sleep(0.1)
-                row = self.listWidgetPoses.currentRow()
-                if row == -1:
+            self.sendCommand(item_text.text())
+            if self.ok_command == "OK":
+                row += 1
+                if row == n_row:
                     row = 0
-                #self.pub.publish(item_text.text())
-                if self.ok_command == "OK":
-                    item_text = self.listWidgetPoses.item(row)
-                    self.ok_command = ""
-                    row += 1
-                    if row == n_row:
-                        row = 0
-                        self.stop = True
-                    else:
-                        self.t = Thread(target=self.sendCommand,
-                                        args=(item_text.text(),))
-                        #self.sendCommand(item_text.text())
-                        self.t.start()
-                    self.listWidgetPoses.setCurrentRow(row)
+                    self.btnRunPathClicked()
+                self.listWidgetPoses.setCurrentRow(row)
 
-    def sendCommand(self, command):
-        '''
-        Sends command to a service and waits for response.
-        '''
-        rob_response = self.send_command(command)
-        self.ok_command = rob_response.response
-
-    def getMoveCommands(self):
-        n_row = self.listWidgetPoses.count()
-        row = 0
-        for row in range(0, n_row):
-            item_text = self.listWidgetPoses.item(row)
-            str_item = item_text.text()
-            comando = json.loads(str_item)
-            if 'move' in comando:
-                new_array_row = comando["move"][0]
-                self.arr.append(new_array_row)
-        last_array = np. array(self.arr) * 0.001
-        self.lines.set_points(last_array)
-        self.pub_marker_array.publish(self.marker_array)
 
 if __name__ == "__main__":
     rospy.init_node('path_panel')
