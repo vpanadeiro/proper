@@ -173,10 +173,10 @@ class QtPath(QtGui.QWidget):
 
             self.arrow.set_new_position(new_arrow_position)
             self.arrow.set_new_orientation(new_arrow)
-            self.arrow.set_color((1, 0, 0, 1))
+            self.arrow.set_color((0, 0, 1, 1))
         else:
             self.arrow.set_color((0, 0, 0, 0))
-            self.pub_marker_array.publish(self.marker_array)
+        self.pub_marker_array.publish(self.marker_array)
 
     def getMoveCommands(self):
         n_row = self.listWidgetPoses.count()
@@ -189,8 +189,8 @@ class QtPath(QtGui.QWidget):
             if 'move' in comando:
                 point = comando["move"][0]
                 points.append(point)
+        print 'feita a adquisicion de trayectoria:', points
         points = np.array(points) * 0.001
-        print points
         self.lines.set_points(points)
         self.pub_marker_array.publish(self.marker_array)
 

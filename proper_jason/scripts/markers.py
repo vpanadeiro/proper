@@ -100,7 +100,7 @@ class LinesMarker(ShapeMarker):
         self.set_size()
 
     def set_size(self, size=0.001):
-        self.set_scale(scale=(size, size, 1.0))
+        self.set_scale(scale=(size, size, size))
 
     def set_points(self, points):
         self.marker.points = [Point(x, y, z) for x, y, z in points]
