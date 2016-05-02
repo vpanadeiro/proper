@@ -26,15 +26,25 @@ class QtPath(QtGui.QWidget):
         QtGui.QWidget.__init__(self, parent)
         loadUi(os.path.join(path, 'resources', 'path.ui'), self)
 
-        rospy.wait_for_service('robot_send_command')
-        self.send_command = rospy.ServiceProxy(
-            'robot_send_command', SrvRobotCommand)
+        try:
+            rospy.wait_for_service('robot_send_command', timeout=5)
+            self.send_command = rospy.ServiceProxy(
+                'robot_send_command', SrvRobotCommand)
+        except:
+            rospy.loginfo('ERROR connecting to service robot_send_command.')
         #self.pub = rospy.Publisher(
         #    'robot_command_json', MsgRobotCommand, queue_size=10)
 
         self.btnLoadPath.clicked.connect(self.btnLoadPathClicked)
+        icon = QtGui.QIcon.fromTheme('document-open')
+        self.btnLoadPath.setIcon(icon)
         self.btnSavePath.clicked.connect(self.btnSavePathClicked)
+        icon = QtGui.QIcon.fromTheme('document-save')
+        self.btnSavePath.setIcon(icon)
         self.btnRunPath.clicked.connect(self.btnRunPathClicked)
+        icon = QtGui.QIcon.fromTheme('media-playback-start')
+        self.btnRunPath.setIcon(icon)
+
         self.btnDelete.clicked.connect(self.btnDeleteClicked)
         self.btnLoadPose.clicked.connect(self.btnLoadPoseClicked)
         self.btnStep.clicked.connect(self.btnStepClicked)
