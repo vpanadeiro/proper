@@ -39,7 +39,7 @@ class QtPath(QtGui.QWidget):
         self.btnLoadPose.clicked.connect(self.btnLoadPoseClicked)
         self.btnStep.clicked.connect(self.btnStepClicked)
         self.listWidgetPoses.itemDoubleClicked.connect(self.qlistDoubleClicked)
-        self.listWidgetPoses.itemSelectionChanged.connect(self.PosesClicked)
+        self.listWidgetPoses.itemSelectionChanged.connect(self.lstPosesClicked)
         self.btnCancel.clicked.connect(self.btnCancelClicked)
 
         self.jason = Jason()
@@ -149,6 +149,25 @@ class QtPath(QtGui.QWidget):
                 row = 0
             self.listWidgetPoses.setCurrentRow(row)
 
+    def lstPosesClicked(self):
+        row = self.listWidgetPoses.currentRow()
+        item_text = self.listWidgetPoses.item(row)
+        str_item = item_text.text()
+        command = json.loads(str_item)
+        if 'move' in command:
+            orientation = np.array([command["move"][1][1],
+                                    command["move"][1][2],
+                                    command["move"][1][3],
+                                    command["move"][1][0]])
+            position = np.array(command["move"][0]) * 0.001
+            self.arrow.set_new_position(position)
+            self.arrow.set_new_orientation(orientation)
+            self.arrow.set_color((0, 0, 1, 1))
+        else:
+            self.arrow.set_color((0, 0, 0, 0))
+        self.pub_marker_array.publish(self.marker_array)
+
+
     def qlistDoubleClicked(self):
         row = self.listWidgetPoses.currentRow()
         item_text = self.listWidgetPoses.item(row)
@@ -161,22 +180,6 @@ class QtPath(QtGui.QWidget):
     def btnCancelClicked(self):
         self.sendCommand('{"cancel":1}')
 
-    def PosesClicked(self):
-        row = self.listWidgetPoses.currentRow()
-        item_text = self.listWidgetPoses.item(row)
-        str_item = item_text.text()
-        comando = json.loads(str_item)
-        if 'move' in comando:
-            new_arrow = comando["move"][1]
-            new_arrow_position = (comando["move"][0])
-            new_arrow_position = np. array(new_arrow_position) * 0.001
-
-            self.arrow.set_new_position(new_arrow_position)
-            self.arrow.set_new_orientation(new_arrow)
-            self.arrow.set_color((0, 0, 1, 1))
-        else:
-            self.arrow.set_color((0, 0, 0, 0))
-        self.pub_marker_array.publish(self.marker_array)
 
     def getMoveCommands(self):
         n_row = self.listWidgetPoses.count()
